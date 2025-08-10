@@ -11,9 +11,6 @@ from flask import Flask, request, jsonify, render_template
 from flask_socketio import SocketIO
 import signal
 
-# ==============================================================================
-# --- CONFIGURACIÓN DE LA APLICACIÓN ---
-# ==============================================================================
 app = Flask(__name__, template_folder='.')
 app.config['SECRET_KEY'] = os.urandom(24)
 socketio = SocketIO(app, cors_allowed_origins="*")
@@ -21,15 +18,11 @@ socketio = SocketIO(app, cors_allowed_origins="*")
 DB_FILE = 'scans.db'
 INSTALL_SCRIPT = 'install_advanced.sh'
 
-# Diccionario para mantener un registro de los procesos en ejecución
 active_processes = {}
 
-# CORRECCIÓN: Construir la ruta absoluta a la wordlist de SecLists
 project_dir = os.path.dirname(os.path.abspath(__file__))
 seclists_wordlist_path = os.path.join(project_dir, "SecLists/Discovery/Web-Content/DirBuster-2007_directory-list-2.3-medium.txt")
 
-
-# --- DEFINICIÓN DE HERRAMIENTAS ---
 ALLOWED_TOOLS = {
     "Nmap": {
         "command": "nmap -v {scan_type} {target} -oX -",
@@ -66,7 +59,6 @@ ALLOWED_TOOLS = {
     }
 }
 
-# --- LÓGICA DE INSTALACIÓN Y VERIFICACIÓN ---
 def run_installation_script():
     print(f"[*] Verificando el entorno y el script de instalación: {INSTALL_SCRIPT}")
     if not os.path.exists(INSTALL_SCRIPT):
@@ -89,7 +81,6 @@ def run_installation_script():
         print(f"[-] Ocurrió una excepción inesperada al ejecutar el script: {e}")
         sys.exit(1)
 
-# --- LÓGICA DE BASE DE DATOS (SQLite) ---
 def init_db():
     with sqlite3.connect(DB_FILE) as conn:
         cursor = conn.cursor()
@@ -103,8 +94,6 @@ def init_db():
             )
         ''')
         conn.commit()
-
-# --- LÓGICA DE EJECUCIÓN DE ESCANEOS ---
 def run_scan_and_stream(scan_id, tool, command_params):
     command_template = ALLOWED_TOOLS[tool]["command"]
     try:
@@ -153,9 +142,9 @@ def run_scan_and_stream(scan_id, tool, command_params):
     socketio.emit('scan_finished', {'scan_id': scan_id, 'status': final_status})
 
 
-# --- LÓGICA DE PARSEO PARA TOPOLOGÍA ---
+
 def parse_nmap_xml(xml_string):
-    # **CORRECCIÓN**: Verificar si la entrada es nula o vacía antes de procesar.
+
     if not xml_string:
         return None
         
@@ -200,7 +189,6 @@ def parse_nmap_xml(xml_string):
         print(f"Error al parsear XML de Nmap: {e}")
         return None
 
-# --- RUTAS Y ENDPOINTS ---
 @app.route('/')
 def index(): 
     return render_template('index.html', tools_data=ALLOWED_TOOLS)
@@ -230,16 +218,15 @@ def get_scan_details(scan_id):
         scan_dict = dict(scan)
         
         if ALLOWED_TOOLS.get(scan_dict['tool'], {}).get('topology_parser'):
-            # **CORRECCIÓN**: Asegurarse de que no se pase un valor None a la función de parseo.
+            
             scan_output = scan_dict.get('output')
-            if scan_output: # Solo intentar parsear si hay una salida
+            if scan_output: 
                 scan_dict['topology'] = parse_nmap_xml(scan_output)
             else:
-                scan_dict['topology'] = None # No hay topología si no hay salida
+                scan_dict['topology'] = None 
             
         return jsonify(scan_dict)
 
-# --- MANEJADORES DE WEBSOCKETS ---
 @socketio.on('connect')
 def handle_connect(): print('[+] Cliente conectado.')
 
@@ -279,8 +266,6 @@ def handle_stop_scan(data):
     else:
         print(f"[-] No se encontró un proceso activo para el escaneo {scan_id}.")
 
-
-# --- INICIO DE LA APLICACIÓN ---
 if __name__ == '__main__':
     run_installation_script()
     init_db()
