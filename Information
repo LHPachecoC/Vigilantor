@@ -1,48 +1,26 @@
 Vigilantor: Framework de Evaluación de Seguridad para Redes
-
 Repositorio: https://github.com/LHPachecoC/Vigilantor
-
 Descripción General:
-
 Vigilantor es un framework de evaluación de seguridad diseñado para realizar auditorías automatizadas en redes locales. Su objetivo principal es identificar vulnerabilidades comunes en dispositivos conectados, como routers, servidores, cámaras IP y otros dispositivos IoT. Vigilantor proporciona una interfaz de línea de comandos (CLI) que permite a los profesionales de la seguridad realizar escaneos de red, identificar dispositivos activos y evaluar su exposición a amenazas conocidas.
 🔍 Características Principales:
-
     Escaneo de Red: Utiliza herramientas como nmap para identificar dispositivos activos en la red local.
-
     Detección de Dispositivos: Clasifica dispositivos según su tipo y modelo, proporcionando información detallada sobre cada uno.
-
     Evaluación de Vulnerabilidades: Realiza pruebas para detectar configuraciones inseguras y vulnerabilidades conocidas en los dispositivos identificados.
-
     Interfaz de Línea de Comandos: Ofrece una CLI intuitiva que facilita la integración en scripts y flujos de trabajo automatizados.
-
 🛠️ Requisitos Técnicos:
-
     Lenguaje de Programación: Python 3.
-
     Dependencias Principales:
-
         nmap (para escaneo de red).
-
         requests (para interacciones HTTP).
-
         paramiko (para conexiones SSH).
         No Longer Set
-
     Sistema Operativo: Linux (probado en distribuciones basadas en Debian).
-
 📄 Documentación y Uso:
-
 La documentación completa está disponible en el repositorio de GitHub, incluyendo instrucciones de instalación, ejemplos de uso y detalles sobre la configuración de escaneos personalizados. Se recomienda revisar la sección de "Issues" para conocer posibles problemas conocidos y sus soluciones.
 🧪 Casos de Uso:
-
     Auditorías de Seguridad: Evaluar la seguridad de redes corporativas identificando dispositivos vulnerables.
-
     Pruebas de Penetración: Simular ataques para identificar posibles puntos de entrada en la infraestructura de red.
-
     Monitoreo Continuo: Realizar escaneos periódicos para detectar cambios en la configuración de la red que puedan introducir vulnerabilidades.
-
 📈 Estado del Proyecto:
-
 Vigilantor es un proyecto en desarrollo activo. Se alienta a la comunidad a contribuir mediante la creación de "issues" para reportar errores o sugerir mejoras, y mediante "pull requests" para implementar nuevas funcionalidades o correcciones.
-
 Para obtener más información o contribuir al proyecto, visita el repositorio oficial en https://github.com/LHPachecoC/Vigilantor.
