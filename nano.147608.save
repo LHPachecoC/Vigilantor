@@ -1,0 +1,433 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Vigilantor - Command Center</title>
+    <script src="https://cdn.socket.io/4.5.4/socket.io.min.js"></script>
+    <script src="https://unpkg.com/vis-network/standalone/umd/vis-network.min.js"></script>
+    <!-- **NUEVO**: Librerías para generar PDF -->
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf-autotable/3.5.23/jspdf.plugin.autotable.min.js"></script>
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Fira+Code&family=Roboto:wght@400;700&display=swap" rel="stylesheet">
+    <style>
+        :root {
+            --bg-color: #0d1117; --panel-bg: #161b22; --border-color: #30363d; --fg-color: #c9d1d9;
+            --fg-color-muted: #8b949e; --accent-color: #238636; --accent-hover: #2ea043; --error-color: #f85149;
+            --stop-color: #da3633; --stop-hover: #f85149; --secondary-color: #30363d; --secondary-hover: #484f58;
+            --font-main: 'Roboto', sans-serif; --font-mono: 'Fira Code', monospace;
+        }
+        * { box-sizing: border-box; }
+        body { background-color: var(--bg-color); color: var(--fg-color); font-family: var(--font-main); margin: 0; padding: 2rem; }
+        .container { max-width: 1400px; margin: auto; display: grid; grid-template-columns: 350px 1fr; gap: 2rem; height: calc(100vh - 4rem); }
+        
+        .sidebar, .main-content {
+            background-color: var(--panel-bg);
+            border-radius: 6px;
+            padding: 1.5rem;
+            border: 1px solid var(--border-color);
+            display: flex;
+            flex-direction: column;
+            overflow: hidden;
+        }
+        
+        .main-content { padding: 0; }
+        .main-content-body { padding: 1.5rem; flex-grow: 1; overflow: hidden; display: flex; flex-direction: column; }
+
+        h1 { font-family: var(--font-mono); color: var(--accent-color); text-align: center; font-size: 2rem; letter-spacing: 2px; text-shadow: 0 0 5px rgba(46, 160, 67, 0.5); margin-bottom: 2rem; margin-top: 0; }
+        h2 { font-size: 1.25rem; color: var(--fg-color); border-bottom: 1px solid var(--border-color); padding-bottom: 0.75rem; margin-top: 0; }
+        label { display: block; margin: 1rem 0 0.5rem; font-weight: bold; font-size: 0.9rem; color: var(--fg-color-muted); }
+        select, input { width: 100%; padding: 0.75rem; background-color: var(--bg-color); color: var(--fg-color); border: 1px solid var(--border-color); border-radius: 6px; font-size: 1rem; }
+        
+        .button-group { display: grid; grid-template-columns: 1fr 1fr; gap: 1rem; margin-top: 1.5rem; }
+        button { width: 100%; padding: 0.8rem; border: none; border-radius: 6px; font-weight: bold; font-size: 1.1rem; cursor: pointer; display: flex; align-items: center; justify-content: center; gap: 0.5rem; transition: background-color 0.2s; }
+        #start-scan-btn { background-color: var(--accent-color); color: #ffffff; grid-column: 1 / -1; }
+        #start-scan-btn:hover { background-color: var(--accent-hover); }
+        #stop-scan-btn { background-color: var(--stop-color); color: #ffffff; }
+        #stop-scan-btn:hover { background-color: var(--stop-hover); }
+        #clear-btn, #generate-pdf-btn { background-color: var(--secondary-color); color: var(--fg-color); }
+        #clear-btn:hover, #generate-pdf-btn:hover { background-color: var(--secondary-hover); }
+        button:disabled { opacity: 0.5; cursor: not-allowed; }
+
+        .tab-nav { display: flex; border-bottom: 1px solid var(--border-color); margin-bottom: 0; padding: 0 1.5rem; flex-shrink: 0; align-items: center; }
+        .tab-link { padding: 0.75rem 1.25rem; cursor: pointer; border-bottom: 3px solid transparent; margin-bottom: -1px; color: var(--fg-color-muted); }
+        .tab-link.active { color: var(--accent-hover); border-bottom-color: var(--accent-hover); }
+        #generate-pdf-btn { margin-left: auto; width: auto; padding: 0.5rem 1rem; font-size: 0.9rem; }
+
+        .tab-content { display: none; flex-grow: 1; overflow: hidden; }
+        .tab-content.active {
+            display: flex;
+            flex-direction: column;
+            min-height: 0;
+        }
+        
+        #scan-output { white-space: pre-wrap; word-wrap: break-word; font-family: var(--font-mono); font-size: 0.9rem; background-color: #010409; padding: 1rem; border-radius: 6px; overflow-y: auto; flex-grow: 1; }
+        #report-content { font-family: var(--font-main); background-color: #010409; padding: 1.5rem; border-radius: 6px; overflow-y: auto; flex-grow: 1; line-height: 1.6; }
+        #report-content h3 { color: var(--accent-color); border-bottom: 1px solid var(--border-color); padding-bottom: 0.5rem; margin-top: 1.5rem; }
+        #report-content table { width: 100%; border-collapse: collapse; margin-top: 1rem; }
+        #report-content th, #report-content td { border: 1px solid var(--border-color); padding: 0.75rem; text-align: left; }
+        #report-content th { background-color: var(--secondary-hover); }
+        #report-content p { margin: 0.5rem 0; }
+        #report-content code { background-color: var(--secondary-color); padding: 0.2rem 0.4rem; border-radius: 4px; font-family: var(--font-mono); }
+
+        #topology-graph { height: 100%; width: 100%; background-color: #010409; border-radius: 6px; border: 1px solid var(--border-color); }
+        
+        #history-list { list-style: none; padding: 0; max-height: 250px; overflow-y: auto; }
+        #history-list li { padding: 0.75rem; border-radius: 4px; cursor: pointer; border-bottom: 1px solid var(--border-color); transition: background-color 0.2s; }
+        #history-list li:hover { background-color: var(--secondary-color); }
+        
+        .creator-credit { text-align: center; margin-top: auto; padding-top: 1.5rem; border-top: 1px solid var(--border-color); font-family: var(--font-mono); color: var(--fg-color-muted); font-size: 0.8rem; }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <aside class="sidebar">
+            <div>
+                <h1>VIGILANTOR</h1>
+                <h2>Nuevo Escaneo</h2>
+                <form id="scan-form">
+                    <label for="tool-select">Herramienta</label>
+                    <select id="tool-select" required></select>
+                    <div id="tool-params"></div>
+                    <div class="button-group">
+                        <button id="start-scan-btn" type="submit"><span>Ejecutar</span></button>
+                        <button id="stop-scan-btn" type="button" style="display: none;">Detener</button>
+                        <button id="clear-btn" type="button" style="display: none;">Limpiar</button>
+                    </div>
+                </form>
+                <h2 style="margin-top: 2rem;">Historial</h2>
+                <ul id="history-list"></ul>
+            </div>
+            <div class="creator-credit"><p>Created by LHPSecure</p></div>
+        </aside>
+        <main class="main-content">
+            <nav class="tab-nav">
+                <a class="tab-link active" data-tab="terminal">Terminal</a>
+                <a class="tab-link" data-tab="report">Reporte</a>
+                <a class="tab-link" data-tab="topology">Topología</a>
+                <!-- **NUEVO**: Botón para generar PDF -->
+                <button id="generate-pdf-btn" type="button" style="display: none;">Generar PDF</button>
+            </nav>
+            <div class="main-content-body">
+                <div id="terminal" class="tab-content active"><pre id="scan-output">Bienvenido a Vigilantor...</pre></div>
+                <div id="report" class="tab-content"><div id="report-content">Selecciona un escaneo para generar un reporte.</div></div>
+                <div id="topology" class="tab-content"><div id="topology-graph"></div></div>
+            </div>
+        </main>
+    </div>
+
+    <script>
+        const toolsData = {{ tools_data | tojson | safe }};
+    </script>
+
+    <script>
+        document.addEventListener('DOMContentLoaded', () => {
+            if (typeof toolsData === 'undefined') {
+                document.body.innerHTML = '<h1 style="color: red; font-family: sans-serif; text-align: center; margin-top: 2rem;">Error Crítico: No se pudieron cargar los datos de las herramientas desde el servidor. Asegúrate de que estás ejecutando la última versión del archivo `app.py`.</h1>';
+                return;
+            }
+
+            const { jsPDF } = window.jspdf;
+            const baseUrl = window.location.origin;
+            const socket = io.connect(baseUrl);
+            
+            const elements = {
+                toolSelect: document.getElementById('tool-select'),
+                toolParams: document.getElementById('tool-params'),
+                scanForm: document.getElementById('scan-form'),
+                startBtn: document.getElementById('start-scan-btn'),
+                stopBtn: document.getElementById('stop-scan-btn'),
+                clearBtn: document.getElementById('clear-btn'),
+                pdfBtn: document.getElementById('generate-pdf-btn'),
+                scanOutput: document.getElementById('scan-output'),
+                historyList: document.getElementById('history-list'),
+                reportContent: document.getElementById('report-content'),
+                topologyGraph: document.getElementById('topology-graph'),
+                tabLinks: document.querySelectorAll('.tab-link'),
+                tabContents: document.querySelectorAll('.tab-content')
+            };
+            
+            let currentScanId = null;
+            let currentScanData = null;
+
+            function setScanningState(isScanning) {
+                elements.startBtn.style.display = isScanning ? 'none' : 'grid';
+                elements.stopBtn.style.display = isScanning ? 'block' : 'none';
+                elements.toolSelect.disabled = isScanning;
+                elements.historyList.style.pointerEvents = isScanning ? 'none' : 'auto';
+            }
+
+            function updateButtonVisibility() {
+                const hasContent = currentScanId !== null;
+                elements.clearBtn.style.display = hasContent ? 'block' : 'none';
+                elements.pdfBtn.style.display = hasContent && document.querySelector('.tab-link[data-tab="report"]').classList.contains('active') ? 'block' : 'none';
+            }
+
+            function clearViews() {
+                elements.scanOutput.textContent = 'Listo para un nuevo escaneo...';
+                elements.reportContent.innerHTML = '<p>Selecciona un escaneo para generar un reporte.</p>';
+                elements.topologyGraph.innerHTML = '';
+                currentScanId = null;
+                currentScanData = null;
+                setScanningState(false);
+                updateButtonVisibility();
+            }
+
+            elements.tabLinks.forEach(link => {
+                link.addEventListener('click', (e) => {
+                    e.preventDefault();
+                    elements.tabLinks.forEach(l => l.classList.remove('active'));
+                    elements.tabContents.forEach(c => c.classList.remove('active'));
+                    link.classList.add('active');
+                    document.getElementById(link.dataset.tab).classList.add('active');
+                    if (link.dataset.tab === 'topology' && currentScanId) {
+                        loadScanDetails(currentScanId, true);
+                    }
+                    updateButtonVisibility();
+                });
+            });
+
+            function fetchHistory() {
+                fetch(`${baseUrl}/api/scans`)
+                    .then(res => res.ok ? res.json() : Promise.reject(res))
+                    .then(scans => {
+                        elements.historyList.innerHTML = '';
+                        scans.forEach(scan => {
+                            try {
+                                const li = document.createElement('li');
+                                const targetInfo = JSON.parse(scan.target_info);
+                                li.innerHTML = `<strong>${scan.tool}</strong> - ${targetInfo.target} <small>(${scan.status})</small>`;
+                                li.dataset.scanId = scan.id;
+                                li.addEventListener('click', () => loadScanDetails(scan.id));
+                                elements.historyList.appendChild(li);
+                            } catch (e) { console.error("Error parsing scan item from history:", scan, e); }
+                        });
+                    })
+                    .catch(error => console.error("Failed to fetch history:", error));
+            }
+
+            function updateToolParams() {
+                const toolName = elements.toolSelect.value;
+                const tool = toolsData[toolName];
+                elements.toolParams.innerHTML = '';
+                if (tool && tool.user_inputs) {
+                    tool.user_inputs.forEach(input => {
+                        const label = document.createElement('label');
+                        label.htmlFor = `input-${input.name}`;
+                        label.textContent = input.name;
+                        const inputEl = document.createElement('input');
+                        inputEl.id = `input-${input.name}`;
+                        inputEl.type = 'text';
+                        inputEl.name = input.name;
+                        inputEl.placeholder = input.placeholder;
+                        inputEl.required = input.required;
+                        if (input.name === 'wordlist' && input.placeholder) {
+                            inputEl.value = input.placeholder;
+                        }
+                        elements.toolParams.appendChild(label);
+                        elements.toolParams.appendChild(inputEl);
+                    });
+                }
+            }
+            
+            function loadScanDetails(scanId, forceTopologyRender = false) {
+                fetch(`${baseUrl}/api/scan/details/${scanId}`)
+                    .then(res => res.ok ? res.json() : Promise.reject(res))
+                    .then(data => {
+                        if (data.error) {
+                            clearViews();
+                            elements.scanOutput.textContent = `Error: ${data.error}`;
+                            return;
+                        }
+                        currentScanId = data.id;
+                        currentScanData = data;
+                        updateButtonVisibility();
+                        elements.scanOutput.textContent = data.output || 'No hay salida para este escaneo.';
+                        renderDetailedReport(data);
+                        if (data.topology) {
+                            if (document.querySelector('.tab-link[data-tab="topology"]').classList.contains('active') || forceTopologyRender) {
+                                renderTopology(data.topology);
+                            }
+                        } else {
+                            elements.topologyGraph.innerHTML = '<p style="text-align:center; padding: 20px;">No hay datos de topología para este tipo de escaneo.</p>';
+                        }
+                    })
+                    .catch(error => console.error(`Failed to load details for scan ${scanId}:`, error));
+            }
+
+            function renderDetailedReport(data) {
+                let reportHTML = ``;
+                const targetInfo = JSON.parse(data.target_info);
+
+                reportHTML += `<h3>Resumen del Escaneo</h3>`;
+                reportHTML += `<p><strong>Herramienta:</strong> ${data.tool}</p>`;
+                reportHTML += `<p><strong>Objetivo:</strong> ${targetInfo.target}</p>`;
+                reportHTML += `<p><strong>Estado:</strong> ${data.status}</p>`;
+
+                if (data.tool === 'Nikto') {
+                    reportHTML += `<h3>Análisis de Vulnerabilidades (Nikto)</h3>`;
+                    const lines = data.output.split('\n');
+                    const vulnerabilities = lines.filter(line => line.startsWith('+') && line.includes('OSVDB'));
+                    if (vulnerabilities.length > 0) {
+                        reportHTML += `<p>Se encontraron las siguientes vulnerabilidades potenciales. Se recomienda una investigación manual para confirmar su explotabilidad.</p>`;
+                        reportHTML += `<ul>`;
+                        vulnerabilities.forEach(vuln => {
+                            reportHTML += `<li><code>${vuln.substring(2)}</code></li>`;
+                        });
+                        reportHTML += `</ul>`;
+                    } else {
+                        reportHTML += `<p>No se encontraron vulnerabilidades de alto riesgo con las firmas de Nikto.</p>`;
+                    }
+                } else if (data.tool === 'Nmap') {
+                    reportHTML += `<h3>Puertos Abiertos (Nmap)</h3>`;
+                    const portLines = data.output.split('\n').filter(line => /^\d+\/(tcp|udp)/.test(line) && line.includes('open'));
+                    if(portLines.length > 0) {
+                        reportHTML += `<p>Se detectaron los siguientes puertos abiertos. Los puertos abiertos pueden ser vectores de ataque si los servicios que se ejecutan en ellos no están debidamente asegurados.</p>`;
+                        reportHTML += `<table id="nmap-report-table"><thead><tr><th>Puerto/Protocolo</th><th>Estado</th><th>Servicio</th></tr></thead><tbody>`;
+                        portLines.forEach(line => {
+                            const parts = line.split(/\s+/);
+                            reportHTML += `<tr><td>${parts[0]}</td><td>${parts[1]}</td><td>${parts[2]}</td></tr>`;
+                        });
+                        reportHTML += `</tbody></table>`;
+                    } else {
+                        reportHTML += `<p>No se encontraron puertos abiertos o todos los puertos están filtrados.</p>`;
+                    }
+                } else {
+                    reportHTML += `<h3>Salida en Bruto</h3><pre><code>${data.output || 'Sin salida.'}</code></pre>`;
+                }
+                elements.reportContent.innerHTML = reportHTML;
+            }
+            
+            function generatePdf() {
+                if (!currentScanData) return;
+                const doc = new jsPDF();
+                const targetInfo = JSON.parse(currentScanData.target_info);
+                
+                doc.setFontSize(22);
+                doc.text("Reporte de Escaneo - Vigilantor", 14, 20);
+                
+                doc.setFontSize(12);
+                doc.text(`Herramienta: ${currentScanData.tool}`, 14, 30);
+                doc.text(`Objetivo: ${targetInfo.target}`, 14, 36);
+                doc.text(`ID de Escaneo: ${currentScanData.id}`, 14, 42);
+
+                const table = document.getElementById('nmap-report-table');
+                if (table) {
+                    doc.autoTable({
+                        html: '#nmap-report-table',
+                        startY: 50,
+                        headStyles: { fillColor: [35, 134, 54] }
+                    });
+                } else {
+                    doc.setFontSize(16);
+                    doc.text("Resultados del Escaneo", 14, 60);
+                    doc.setFontSize(10);
+                    doc.text(currentScanData.output, 14, 68, { maxWidth: 180 });
+                }
+
+                doc.save(`Vigilantor-Reporte-${currentScanData.id.substring(0,8)}.pdf`);
+            }
+
+            function renderTopology(topologyData) {
+                if (!topologyData || !topologyData.nodes || topologyData.nodes.length === 0) {
+                    elements.topologyGraph.innerHTML = '<p style="text-align:center; padding: 20px;">No se encontraron hosts para visualizar.</p>';
+                    return;
+                }
+                const container = elements.topologyGraph;
+                const data = { nodes: new vis.DataSet(topologyData.nodes), edges: new vis.DataSet(topologyData.edges) };
+                const options = {
+                    nodes: { shape: 'dot', size: 16, font: { color: '#fff' } },
+                    edges: { width: 2, color: { inherit: 'from' } },
+                    physics: { stabilization: false, solver: 'repulsion' },
+                    groups: {
+                        target: { color: { background: '#f85149' }, size: 25 },
+                        host: { color: { background: '#2ea043' }, size: 20 },
+                        port: { color: { background: '#0078D7' }, shape: 'square', size: 10 }
+                    }
+                };
+                new vis.Network(container, data, options);
+            }
+
+            // --- SOCKET LISTENERS ---
+            socket.on('scan_started', data => {
+                currentScanId = data.scan_id;
+                elements.scanOutput.textContent = `Iniciando escaneo con ${data.tool} sobre ${data.target}...\nID: ${data.scan_id}\n\n`;
+                elements.reportContent.innerHTML = '<p>Generando reporte...</p>';
+                elements.topologyGraph.innerHTML = '';
+                setScanningState(true);
+                updateButtonVisibility();
+            });
+
+            socket.on('scan_update', data => {
+                if (data.scan_id === currentScanId) {
+                    elements.scanOutput.textContent += data.output;
+                    elements.scanOutput.scrollTop = elements.scanOutput.scrollHeight;
+                }
+            });
+
+            socket.on('scan_finished', data => {
+                if (data.scan_id === currentScanId) {
+                    setScanningState(false);
+                }
+                fetchHistory();
+                loadScanDetails(data.scan_id);
+            });
+            
+            socket.on('scan_stopped', data => {
+                if (data.scan_id === currentScanId) {
+                    elements.scanOutput.textContent += `\n\n--- ${data.message} ---\n`;
+                    setScanningState(false);
+                    fetchHistory();
+                }
+            });
+
+            socket.on('scan_error', data => {
+                 if (data.scan_id === currentScanId) {
+                    elements.scanOutput.textContent += `\n\n--- ERROR: ${data.error} ---\n`;
+                    setScanningState(false);
+                    fetchHistory();
+                }
+            });
+
+            // --- EVENT HANDLERS ---
+            elements.toolSelect.addEventListener('change', updateToolParams);
+            elements.pdfBtn.addEventListener('click', generatePdf);
+            
+            elements.scanForm.addEventListener('submit', (e) => {
+                e.preventDefault();
+                const selectedTool = elements.toolSelect.value;
+                const params = {};
+                elements.toolParams.querySelectorAll('input').forEach(input => { params[input.name] = input.value; });
+                socket.emit('start_scan', { tool: selectedTool, params: params });
+            });
+
+            elements.stopBtn.addEventListener('click', () => {
+                if (currentScanId) {
+                    socket.emit('stop_scan', { 'scan_id': currentScanId });
+                }
+            });
+
+            elements.clearBtn.addEventListener('click', () => {
+                clearViews();
+            });
+
+            // --- INITIALIZATION ---
+            function initializeApp() {
+                clearViews();
+                elements.toolSelect.innerHTML = '';
+                if (toolsData && Object.keys(toolsData).length > 0) {
+                    Object.keys(toolsData).forEach(name => elements.toolSelect.add(new Option(name, name)));
+                    updateToolParams();
+                } else {
+                    elements.toolParams.innerHTML = '<p style="color: var(--error-color);">No se pudieron cargar las herramientas.</p>';
+                }
+                fetchHistory();
+            }
+
+            initializeApp();
+        });
+    </script>
+</body>
+</html>
