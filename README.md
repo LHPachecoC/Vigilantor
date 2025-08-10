@@ -1,4 +1,4 @@
-Panel de Control de Seguridad Avanzado - Rootbit
+Panel de Control de Seguridad Avanzado - LHPSecure
 
 Una plataforma web profesional para la orquestación de herramientas de ciberseguridad, construida con una arquitectura robusta y comunicación en tiempo real.
 Dependencias
